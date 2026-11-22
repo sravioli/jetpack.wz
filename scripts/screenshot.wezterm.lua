@@ -12,7 +12,7 @@ local demo = assert(os.getenv "JETPACK_DEMO", "JETPACK_DEMO is not set")
 local scene = assert(os.getenv "JETPACK_SCENE", "JETPACK_SCENE is not set")
 -- Bar-only scenes: an undecorated one-row window the script crops to the bar.
 local bar_only = scene == "bar"
-for _, name in ipairs { "mosaic", "warp", "warden", "log", "sigil", "ribbon", "memo" } do
+for _, name in ipairs { "mosaic", "warp", "warden", "sigil", "memo" } do
   local base = repo .. "/../" .. name .. ".wz/plugin/"
   package.path = base .. "?.lua;" .. base .. "?/init.lua;" .. package.path
 end
