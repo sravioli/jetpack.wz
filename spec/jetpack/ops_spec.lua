@@ -185,7 +185,7 @@ describe("jetpack operations (git)", function()
     local root, log = tmp .. "/root", tmp .. "/lock.log"
     sh(("mkdir -p '%s'"):format(root))
     local cmd = (
-      "lua5.4 -e 'package.path=[[plugin/?.lua;plugin/?/init.lua;./?.lua;]]..package.path' "
+      "$(command -v lua5.4 || echo lua) -e 'package.path=[[plugin/?.lua;plugin/?/init.lua;./?.lua;]]..package.path' "
       .. "spec/support/lock_worker.lua '%s' '%s' '%s' '%s' > '%s/out.%%d' 2>&1 &"
     ):format(root, log, warp_dir, warden_dir, tmp)
     local jobs = {}
