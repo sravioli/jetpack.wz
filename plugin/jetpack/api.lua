@@ -31,7 +31,7 @@ local state = require "jetpack.state"
 ---@class Jetpack
 local M = {}
 
-M.VERSION = "0.0.0"
+M.VERSION = "0.1.0"
 
 -- jetpack's own dependencies, pinned like any plugin unless the spec lists them.
 local OWN = { "sravioli/warp.wz", "sravioli/warden.wz" }
