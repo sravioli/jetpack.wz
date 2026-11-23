@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [0.1.1](https://github.com/sravioli/jetpack.wz/compare/be6b7d85b61bb809feaba4ee8acd839757c3b067..0.1.1) - 2026-11-23
+#### Performance Improvements
+- (**git**) clone without a blob filter - ([be6b7d8](https://github.com/sravioli/jetpack.wz/commit/be6b7d85b61bb809feaba4ee8acd839757c3b067)) - sravioli
+
+- - -
+
 ## [0.1.0](https://github.com/sravioli/jetpack.wz/compare/3391966136e62e7cad6fad9c0ac1768d4e43d244..0.1.0) - 2026-11-23
 #### Features
 - (**lock**) version the lockfile and rely on warp's write_file - ([dcf41ed](https://github.com/sravioli/jetpack.wz/commit/dcf41ed47246ed3908a1155d2a1970f9b1e35cff)) - sravioli
