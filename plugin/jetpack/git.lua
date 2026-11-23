@@ -36,9 +36,10 @@ end
 ---@return boolean ok
 ---@return string|nil err
 function M.clone(url, dir)
-  -- Full history (tags, changelogs and undo work offline) but file contents
-  -- only for what gets checked out.
-  local ok, _, err = run { "clone", "--quiet", "--filter=blob:none", "--", url, dir }
+  -- Full clone: tags, changelogs and undo work offline. A blobless clone
+  -- saved bytes but cost a second round trip at checkout, which is slower for
+  -- plugin-sized repositories.
+  local ok, _, err = run { "clone", "--quiet", "--", url, dir }
   return ok, not ok and err or nil
 end
 

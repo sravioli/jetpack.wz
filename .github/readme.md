@@ -175,9 +175,8 @@ each plugin. The picker runs the same functions.
 over uncommitted changes in a clone. It reports the plugin as failed instead.
 
 `check` and `update` fetch all plugins in parallel (one after the other on
-Windows). New clones skip the file contents that they do not check out
-(`--filter=blob:none`). They keep the full history, so tags, the changelog
-view, and undo work offline.
+Windows). Clones keep the full history, so tags, the changelog view, and undo
+work offline.
 
 To run an operation from a key binding, use `jetpack.action.update()`,
 `jetpack.action.sync()`, or `jetpack.action.check()`.
