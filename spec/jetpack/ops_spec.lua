@@ -181,6 +181,43 @@ describe("jetpack operations (git)", function()
     assert.is_nil(io.open(dir .. "/since"))
   end)
 
+  it("lets only one of several real processes hold the lock at a time", function()
+    local root, log = tmp .. "/root", tmp .. "/lock.log"
+    sh(("mkdir -p '%s'"):format(root))
+    local cmd = (
+      "lua5.4 -e 'package.path=[[plugin/?.lua;plugin/?/init.lua;./?.lua;]]..package.path' "
+      .. "spec/support/lock_worker.lua '%s' '%s' '%s' '%s' > '%s/out.%%d' 2>&1 &"
+    ):format(root, log, warp_dir, warden_dir, tmp)
+    local jobs = {}
+    for i = 1, 5 do
+      jobs[#jobs + 1] = cmd:format(i)
+    end
+    sh(table.concat(jobs, "\n") .. "\nwait")
+
+    local ran, refused = 0, 0
+    for i = 1, 5 do
+      local text = sh(("cat '%s/out.%d'"):format(tmp, i))
+      if text == "ran" then
+        ran = ran + 1
+      else
+        refused = refused + 1
+        assert.matches("another WezTerm is already working on plugins", text)
+      end
+    end
+    assert.is_true(ran >= 1)
+    assert.is_true(refused >= 1)
+    -- Every run logged in then out, never two "in" in a row.
+    local lines = {}
+    for line in sh(("cat '%s'"):format(log)):gmatch "[^\n]+" do
+      lines[#lines + 1] = line
+    end
+    assert.equal(ran * 2, #lines)
+    for i, line in ipairs(lines) do
+      assert.equal(i % 2 == 1 and "in" or "out", line)
+    end
+    assert.is_nil(io.open(root .. "/.jetpack.lock/since"))
+  end)
+
   it("lists the commits an update would bring in", function()
     setup()
     assert.same({ nil, "check for updates first" }, { ops.changes(src) })
