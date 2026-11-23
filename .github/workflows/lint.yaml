@@ -59,11 +59,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # The release binary: the selene-action repository no longer exists.
       - name: Install selene
-        uses: NTBBloodbath/selene-action@v1.0.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --version
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/selene.zip" https://github.com/Kampfkarren/selene/releases/download/0.31.0/selene-0.31.0-linux.zip
+          unzip -q "$RUNNER_TEMP/selene.zip" -d "$RUNNER_TEMP/selene"
+          chmod +x "$RUNNER_TEMP/selene/selene"
+          echo "$RUNNER_TEMP/selene" >> "$GITHUB_PATH"
 
       - name: Run selene
         run: selene --display-style=quiet plugin
