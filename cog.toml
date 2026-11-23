@@ -12,6 +12,7 @@ post_bump_hooks = ["git push origin {{version}}", "git push"]
 [bump_profiles]
 
 [commit_types]
+perf = { changelog_title = "Performance", bump_patch = true }
 chore = { changelog_title = "Misc", omit_from_changelog = true }
 hotfix = { changelog_title = "Hotfixes" }
 release = { changelog_title = "Releases" }

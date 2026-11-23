@@ -352,9 +352,23 @@ never change the same clones at the same time. The second process reports
 "another WezTerm is already working on plugins" and does nothing. jetpack takes
 over a lock that is older than 15 minutes, because a crash left it.
 
-jetpack does not support parallel first installs (clones run one after the
-other), conditional specs, build hooks, lazy loading, or specs that come from
-modules.
+A plugin that `enabled` turns off is not cloned, locked or loaded. Its lockfile
+entry stays, so turning it back on restores the same commit. A clone that is
+already on disk counts as an orphan, so `clean` removes it. `jetpack.require`
+of a disabled plugin raises an error, so guard the call with the same
+condition.
+
+### Not supported
+
+These are left out on purpose:
+
+- Build hooks. A plugin is Lua, so there is nothing to build.
+- Loading a plugin on an event or a key. A config reload loads every
+  spec at once.
+- Installs in the background. A missing clone installs while the config loads,
+  and the config waits for it.
+- Specs that come from modules. `spec` is one table in the config.
+- Windows is untested. The clones there run one after the other.
 
 ## API reference
 
@@ -367,6 +381,12 @@ parameters and return values. It is generated from the LuaLS annotations in
 
 `?` marks optional arguments. The operations in [Update and undo](#update-and-undo)
 return one result for each plugin. Underscore-prefixed helpers are internal.
+
+The public API is `require "jetpack.api"`, the options and spec fields in the
+reference, and the lockfile format. It follows semver from 1.0: a change that
+breaks any of these needs a new major version. The other modules (`jetpack.ops`,
+`jetpack.picker`, `jetpack.state`, `jetpack.hook` and the rest) are internal and
+can change in any release.
 
 ## mosaic integration
 
