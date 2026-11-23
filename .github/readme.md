@@ -326,7 +326,9 @@ WezTerm, so the config keeps working. Set `strict = true` to raise an error
 instead.
 
 The lockfile keeps, for each plugin, the commit, the ref it came from, and the
-commit before the last update (`prev`, `prev_ref`) for undo. `check` results
+commit before the last update (`prev`, `prev_ref`) for undo. The file has a `version` field (now 1). jetpack reads
+lockfiles from before it existed, and rewrites them on the next write. A
+lockfile with a newer version is an error: update jetpack. `check` results
 stay in `wezterm.GLOBAL`. The picker and the bar know about available updates
 after a reload.
 

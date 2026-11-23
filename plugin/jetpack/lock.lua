@@ -4,6 +4,10 @@
 
 ---`jetpack-lock.json`: the commit each plugin is pinned to. Written with
 ---sorted keys, one plugin per line, so diffs stay small.
+---
+---Format: `{ "version": 1, "plugins": { "<id>": { "commit": ... } } }`. A file
+---with no `version` is the 0.x format (the `plugins` table on its own); it is
+---read as is and rewritten in the current format on the next write.
 
 local wezterm = require "wezterm"
 
@@ -14,6 +18,9 @@ local wezterm = require "wezterm"
 ---@field prev_ref? string
 
 local M = {}
+
+---The format `write` produces, and the newest one `read` accepts.
+M.VERSION = 1
 
 ---@param s string
 ---@return any
@@ -43,8 +50,22 @@ function M.read(path)
   if not ok or type(data) ~= "table" then
     error(("%s is not valid JSON: %s"):format(path, tostring(data)), 0)
   end
+  local plugins = data
+  if data.version ~= nil then
+    if type(data.version) ~= "number" or data.version > M.VERSION then
+      error(
+        ("%s has lockfile version %s; this jetpack reads up to %d. Update jetpack."):format(
+          path,
+          tostring(data.version),
+          M.VERSION
+        ),
+        0
+      )
+    end
+    plugins = type(data.plugins) == "table" and data.plugins or {}
+  end
   local lock = {}
-  for id, entry in pairs(data) do
+  for id, entry in pairs(plugins) do
     if type(entry) == "table" and type(entry.commit) == "string" then
       local function str(v)
         return type(v) == "string" and v or nil
@@ -101,40 +122,13 @@ function M.encode(lock)
         fields[#fields + 1] = ('"%s": %s'):format(k, quote(e[k]))
       end
     end
-    lines[i] = ("  %s: { %s }"):format(quote(id), table.concat(fields, ", "))
+    lines[i] = ("    %s: { %s }"):format(quote(id), table.concat(fields, ", "))
   end
+  local head = ('{\n  "version": %d,\n  "plugins": {'):format(M.VERSION)
   if #lines == 0 then
-    return "{}\n"
+    return head .. "}\n}\n"
   end
-  return "{\n" .. table.concat(lines, ",\n") .. "\n}\n"
-end
-
----Temporary sibling, then rename over `path`, so readers never see half a
----file. Windows cannot rename over an existing file, so it is removed first.
----@param path string
----@param contents string
----@return boolean ok
----@return string|nil err
-local function atomic_write(path, contents)
-  local tmp = ("%s.%d.tmp"):format(path, os.time())
-  local f, err = io.open(tmp, "wb")
-  if not f then
-    return false, err
-  end
-  local wrote, werr = f:write(contents)
-  f:close()
-  if not wrote then
-    os.remove(tmp)
-    return false, werr
-  end
-  if not os.rename(tmp, path) then
-    os.remove(path)
-    local ok, rerr = os.rename(tmp, path)
-    if not ok then
-      return false, ("%s; the new lock is kept at %s"):format(tostring(rerr), tmp)
-    end
-  end
-  return true
+  return head .. "\n" .. table.concat(lines, ",\n") .. "\n  }\n}\n"
 end
 
 ---@param path string
@@ -142,16 +136,8 @@ end
 ---@return boolean ok
 ---@return string|nil err
 function M.write(path, lock)
-  -- shortcut: no file lock; two WezTerm processes updating at once race
-  -- (last write wins). Add one if that shows up in practice.
   cache[path] = nil
-  local fs = require("jetpack.deps").warp.filesystem
-  -- shortcut: warp 0.2.1 (latest release) has no write_file; drop the
-  -- fallback once a warp release ships it and the warp spec requires it.
-  if fs.write_file then
-    return fs.write_file(path, M.encode(lock))
-  end
-  return atomic_write(path, M.encode(lock))
+  return require("jetpack.deps").warp.filesystem.write_file(path, M.encode(lock))
 end
 
 return M

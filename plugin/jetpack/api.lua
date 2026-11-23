@@ -50,32 +50,38 @@ local function install_missing()
   end
   local ops, lock = require "jetpack.ops", require "jetpack.lock"
   local cfg = config.get()
-  local ok, locks = pcall(lock.read, cfg.lockfile)
-  if not ok then
-    wezterm.log_error("[jetpack] " .. tostring(locks) .. "; not installing anything")
-    return
-  end
-  local changed = false
-  local install = ops.locked(ops.install)
-  for _, s in ipairs(missing) do
-    local r, c = install(s, locks)
-    if r[1] then
-      -- Another process holds the lock: a one-line report, nothing done.
-      r, c = r[1], false
+  -- Read, install and write under one lock: another WezTerm starting at the
+  -- same time must not read the lockfile before this one has written it.
+  local run = ops.locked(function()
+    local ok, locks = pcall(lock.read, cfg.lockfile)
+    if not ok then
+      wezterm.log_error("[jetpack] " .. tostring(locks) .. "; not installing anything")
+      return {}
     end
-    changed = changed or c
-    if r.ok then
-      hook.add_path(s.path)
-      wezterm.log_info(("[jetpack] installed %s %s"):format(s.id, r.detail or ""))
-    else
-      wezterm.log_error(("[jetpack] cannot install %s: %s"):format(s.id, tostring(r.detail)))
+    local changed = false
+    for _, s in ipairs(missing) do
+      local r, c = ops.install(s, locks)
+      changed = changed or c
+      if r.ok then
+        hook.add_path(s.path)
+        wezterm.log_info(("[jetpack] installed %s %s"):format(s.id, r.detail or ""))
+      else
+        wezterm.log_error(("[jetpack] cannot install %s: %s"):format(s.id, tostring(r.detail)))
+      end
     end
-  end
-  if changed then
-    local wrote, err = lock.write(cfg.lockfile, locks)
-    if not wrote then
-      wezterm.log_error("[jetpack] cannot write the lockfile: " .. tostring(err))
+    if changed then
+      local wrote, err = lock.write(cfg.lockfile, locks)
+      if not wrote then
+        wezterm.log_error("[jetpack] cannot write the lockfile: " .. tostring(err))
+      end
     end
+    return {}
+  end)
+  -- Another process holds the lock: a one-line failure report, nothing done.
+  for _, r in ipairs(run()) do
+    wezterm.log_error(
+      ("[jetpack] cannot install %d plugin(s): %s"):format(#missing, tostring(r.detail))
+    )
   end
 end
 
@@ -88,7 +94,9 @@ function M.setup(opts)
   local list, by_id, by_url = spec.list(cfg.spec, cfg.root)
   for _, id in ipairs(OWN) do
     if not by_id[id] then
-      local s = spec.normalize(id, cfg.root)
+      -- warp 1.0 added `filesystem.write_file`, which the lockfile needs.
+      local s =
+        spec.normalize(id == "sravioli/warp.wz" and { id, version = ">=1.0.0" } or id, cfg.root)
       list[#list + 1], by_id[s.id], by_url[spec.url_key(s.url)] = s, s, s
     end
   end
