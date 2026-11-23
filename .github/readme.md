@@ -147,7 +147,7 @@ the version.
 | `branch`       | Follow a branch. If no version field is set, jetpack follows the default branch.                                                                                                      |
 | `dir`          | A local checkout. jetpack loads it as it is and never runs git on it. Use it for plugin development.                                                                                  |
 | `name`         | The display name. The default is the repository name.                                                                                                                                 |
-| `enabled`      | `false`, or a function that returns a falsy value, drops the entry as if it were not listed. Two entries for one plugin can pick by condition.                                       |
+| `enabled`      | `false`, or a function that returns a falsy value, drops the entry as if it were not listed. Two entries for one plugin can pick by condition.                                        |
 | `opts`         | A table. `jetpack.apply_to_config(config)` calls the plugin's `apply_to_config(config, opts)` with it.                                                                                |
 | `config`       | A function `config(plugin, config, opts)` that runs instead of `apply_to_config`, for plugins with another entry point.                                                               |
 
@@ -174,15 +174,15 @@ to skip this check and to never load warden.wz.
 Each operation is a plain function that returns a report with one result for
 each plugin. The picker runs the same functions.
 
-| Function                                | What it does                                                                                                                                                               |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `jetpack.sync(ids?)`                    | Clones missing plugins, checks out the locked commits, and locks plugins that the lockfile does not list. Run it after you pull a lockfile from another machine.           |
-| `jetpack.check(ids?)`                   | Fetches and records the newest commit that each spec accepts. It changes nothing else.                                                                                     |
-| `jetpack.update(ids?)`                  | Fetches, checks out the newest commit that each spec accepts, and writes it to the lockfile. It keeps the previous commit for `undo`.                                      |
-| `jetpack.undo(ids?)`                    | Goes back to the version that each plugin had before its last update, and locks it.                                                                                        |
-| `jetpack.restore(ids?)`                 | Checks out the locked commits again, for example after you revert the lockfile with git.                                                                                   |
-| `jetpack.orphans()` / `jetpack.clean()` | Lists, or deletes, the clones that no spec names. jetpack never deletes a clone that has changed or untracked files, or commits on no remote.                              |
-| `jetpack.status()`                      | Shows, for each plugin, the locked version, the checked-out commit, the newest version that `check` found, and a state.                                                    |
+| Function                                | What it does                                                                                                                                                                                         |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `jetpack.sync(ids?)`                    | Clones missing plugins, checks out the locked commits, and locks plugins that the lockfile does not list. Run it after you pull a lockfile from another machine.                                     |
+| `jetpack.check(ids?)`                   | Fetches and records the newest commit that each spec accepts. It changes nothing else.                                                                                                               |
+| `jetpack.update(ids?)`                  | Fetches, checks out the newest commit that each spec accepts, and writes it to the lockfile. It keeps the previous commit for `undo`.                                                                |
+| `jetpack.undo(ids?)`                    | Goes back to the version that each plugin had before its last update, and locks it.                                                                                                                  |
+| `jetpack.restore(ids?)`                 | Checks out the locked commits again, for example after you revert the lockfile with git.                                                                                                             |
+| `jetpack.orphans()` / `jetpack.clean()` | Lists, or deletes, the clones that no spec names. jetpack never deletes a clone that has changed or untracked files, or commits on no remote.                                                        |
+| `jetpack.status()`                      | Shows, for each plugin, the locked version, the checked-out commit, the newest version that `check` found, and a state.                                                                              |
 | `jetpack.doctor()`                      | Reports the health of git, the root, the lockfile, the hooks, the real load path and load time of each plugin (`timings`), and the unpinned plugins. It logs the report line by line and returns it. |
 
 `ids` are ids (`owner/repo`) or names (`beacon.wz`). jetpack never checks out

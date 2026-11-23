@@ -18,9 +18,9 @@ local semver = require "jetpack.semver"
 ---@field commit?  string
 ---@field branch?  string
 ---@field dir?     string   Local checkout: loaded as-is, never touched by git.
----@field enabled? boolean|fun():boolean  False (or a function returning false/nil) drops the entry, as if it were not listed. Default true.
----@field opts?    table    Passed to the plugin's `apply_to_config(config, opts)` by `jetpack.apply_to_config`.
----@field config?  fun(plugin: any, config: table, opts: table|nil)  Runs instead of `apply_to_config`, with the loaded plugin.
+---@field enabled? boolean|fun():boolean  False, or a function that says no, drops the entry.
+---@field opts?    table    Passed to the plugin's `apply_to_config(config, opts)`.
+---@field config?  fun(plugin: any, config: table, opts: table|nil)  Runs instead of `apply_to_config`.
 
 ---@class Jetpack.Spec
 ---@field id        string  Lockfile key: `owner/repo` on GitHub, else the URL without scheme.

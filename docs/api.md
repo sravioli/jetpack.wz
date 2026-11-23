@@ -7,6 +7,7 @@ A `?` after a parameter name marks it optional. To fix an entry, edit the
 source annotations and generate this file again.
 
 - [jetpack](#jetpack)
+- [Jetpack.SpecInput](#jetpackspecinput)
 - [Types](#types)
 
 ## jetpack
@@ -189,7 +190,7 @@ Show the picker's hints elsewhere (e.g. chord's status bar). Call before
 jetpack.apply_to_config(c: table) -> table
 ```
 
-Register the picker's key table.
+Register the picker's key table, and run the specs' `opts`/`config`.
 
 **Parameters:**
 
@@ -198,6 +199,31 @@ Register the picker's key table.
 _Returns:_
 
 - `#1` (`table`)
+
+## Jetpack.SpecInput
+
+[Back to top](#jetpackwz-api-reference)
+
+Values:
+
+- `Jetpack.SpecInput.[1]` (`string?`): `owner/repo` (GitHub) or a full git URL.
+- `Jetpack.SpecInput.url` (`string?`): same as `[1]`.
+- `Jetpack.SpecInput.name` (`string?`): display name. Defaults to the repository name.
+- `Jetpack.SpecInput.version` (`string?`): semver range over tags (see jetpack.semver).
+- `Jetpack.SpecInput.tag` (`string?`)
+- `Jetpack.SpecInput.commit` (`string?`)
+- `Jetpack.SpecInput.branch` (`string?`)
+- `Jetpack.SpecInput.dir` (`string?`): local checkout: loaded as-is, never touched by git.
+- `Jetpack.SpecInput.enabled` (`(boolean|fun():boolean)?`): false, or a function that says no, drops the entry.
+- `Jetpack.SpecInput.opts` (`table?`): passed to the plugin's `apply_to_config(config, opts)`.
+
+### Jetpack.SpecInput.config
+
+```lua
+Jetpack.SpecInput.config(plugin: any, config: table, opts: table|nil)
+```
+
+Runs instead of `apply_to_config`.
 
 ## Types
 
@@ -249,6 +275,7 @@ Fields:
 - `spec` (`(string|Jetpack.SpecInput)[]`, optional)
 - `strict` (`boolean`, optional): raise instead of loading WezTerm's unpinned copy of a plugin whose clone is missing.
 - `validate` (`boolean`, optional): validate options with warden.wz. Default true.
+- `timings` (`boolean`, optional): time each plugin's load for `doctor`. Default true.
 - `auto_check` (`Jetpack.AutoCheck|false`, optional)
 - `root` (`string`, optional): where clones live. Default: `<data dir>/wezterm/jetpack`.
 - `lockfile` (`string`, optional): default: `<config dir>/jetpack-lock.json`.
@@ -279,19 +306,6 @@ Fields:
 - `action` (`string`): what happened: installed, updated, restored, locked, current, ...
 - `ok` (`boolean`)
 - `detail` (`string`, optional): version reached, or the error
-
-### Jetpack.SpecInput
-
-Fields:
-
-- `[1]` (`string`, optional): `owner/repo` (GitHub) or a full git URL.
-- `url` (`string`, optional): same as `[1]`.
-- `name` (`string`, optional): display name. Defaults to the repository name.
-- `version` (`string`, optional): semver range over tags (see jetpack.semver).
-- `tag` (`string`, optional)
-- `commit` (`string`, optional)
-- `branch` (`string`, optional)
-- `dir` (`string`, optional): local checkout: loaded as-is, never touched by git.
 
 ### Jetpack.Status
 
