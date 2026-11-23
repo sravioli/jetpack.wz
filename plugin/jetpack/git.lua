@@ -43,6 +43,53 @@ function M.clone(url, dir)
   return ok, not ok and err or nil
 end
 
+---Contents of `path`, which is deleted; nil when it does not exist.
+---@param path string
+---@return string|nil
+local function slurp(path)
+  local f = io.open(path, "r")
+  if not f then
+    return nil
+  end
+  local text = f:read "*a"
+  f:close()
+  os.remove(path)
+  return text
+end
+
+---Clone several repositories at once, the way `fetch_all` fetches: POSIX runs
+---one `sh` with a background clone each, Windows goes one after another.
+---Status files sit next to each target and are removed.
+---@param jobs { url: string, dir: string }[]
+---@return table<string, string|false> err per dir: false when it worked
+function M.clone_all(jobs)
+  local out = {}
+  if #jobs <= 1 or deps.warp.filesystem.is_win then
+    for _, j in ipairs(jobs) do
+      local ok, err = M.clone(j.url, j.dir)
+      out[j.dir] = not ok and (err or "clone failed") or false
+    end
+    return out
+  end
+  local git = deps.warp.process.which(config.get().git) or config.get().git
+  local script = "g=$1; shift; while [ $# -ge 2 ]; do u=$1; d=$2; shift 2; "
+    .. '( "$g" clone --quiet -- "$u" "$d" 2>"$d.err"; echo $? >"$d.rc" ) & done; wait'
+  local argv = { "sh", "-c", script, "sh", git }
+  for _, j in ipairs(jobs) do
+    argv[#argv + 1], argv[#argv + 2] = j.url, j.dir
+  end
+  deps.warp.process.run(argv)
+  for _, j in ipairs(jobs) do
+    local rc, err = slurp(j.dir .. ".rc"), slurp(j.dir .. ".err")
+    if tonumber(rc) == 0 then
+      out[j.dir] = false
+    else
+      out[j.dir] = (err and err:gsub("%s+$", "") ~= "" and err:gsub("%s+$", "")) or "clone failed"
+    end
+  end
+  return out
+end
+
 ---@param dir string
 ---@return boolean ok
 ---@return string|nil err
@@ -77,17 +124,7 @@ function M.fetch_all(dirs)
   end
   deps.warp.process.run(argv)
   for _, dir in ipairs(dirs) do
-    local function slurp(name)
-      local f = io.open(dir .. "/.git/" .. name, "r")
-      if not f then
-        return nil
-      end
-      local text = f:read "*a"
-      f:close()
-      os.remove(dir .. "/.git/" .. name)
-      return text
-    end
-    local rc, err = slurp "jetpack-fetch.rc", slurp "jetpack-fetch.err"
+    local rc, err = slurp(dir .. "/.git/jetpack-fetch.rc"), slurp(dir .. "/.git/jetpack-fetch.err")
     if tonumber(rc) == 0 then
       out[dir] = false
     else

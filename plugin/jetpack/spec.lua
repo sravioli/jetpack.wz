@@ -18,6 +18,9 @@ local semver = require "jetpack.semver"
 ---@field commit?  string
 ---@field branch?  string
 ---@field dir?     string   Local checkout: loaded as-is, never touched by git.
+---@field enabled? boolean|fun():boolean  False (or a function returning false/nil) drops the entry, as if it were not listed. Default true.
+---@field opts?    table    Passed to the plugin's `apply_to_config(config, opts)` by `jetpack.apply_to_config`.
+---@field config?  fun(plugin: any, config: table, opts: table|nil)  Runs instead of `apply_to_config`, with the loaded plugin.
 
 ---@class Jetpack.Spec
 ---@field id        string  Lockfile key: `owner/repo` on GitHub, else the URL without scheme.
@@ -31,6 +34,8 @@ local semver = require "jetpack.semver"
 ---@field tag?      string
 ---@field commit?   string
 ---@field branch?   string
+---@field opts?     table
+---@field config?   function
 
 local M = {}
 
@@ -81,6 +86,12 @@ function M.normalize(entry, root)
   if type(source) ~= "string" or source == "" then
     error("spec needs `owner/repo` or `url`", 0)
   end
+  if entry.opts ~= nil and type(entry.opts) ~= "table" then
+    error(("%s: `opts` must be a table"):format(source), 0)
+  end
+  if entry.config ~= nil and type(entry.config) ~= "function" then
+    error(("%s: `config` must be a function"):format(source), 0)
+  end
   for _, k in ipairs { "name", "version", "tag", "commit", "branch", "dir" } do
     if entry[k] ~= nil and (type(entry[k]) ~= "string" or entry[k] == "") then
       error(("%s: `%s` must be a non-empty string"):format(source, k), 0)
@@ -117,10 +128,33 @@ function M.normalize(entry, root)
     tag = entry.tag,
     commit = entry.commit,
     branch = entry.branch,
+    opts = entry.opts,
+    config = entry.config,
   }
 end
 
----Normalize a list of specs, rejecting duplicates.
+---Whether an entry takes part: `enabled` is not false, and a function it is
+---gives a truthy answer.
+---@param entry string|Jetpack.SpecInput
+---@return boolean
+local function enabled(entry)
+  if type(entry) ~= "table" or entry.enabled == nil then
+    return true
+  end
+  local e = entry.enabled
+  if type(e) == "function" then
+    return e() and true or false
+  elseif type(e) ~= "boolean" then
+    error(
+      ("%s: `enabled` must be a boolean or a function"):format(tostring(entry[1] or entry.url)),
+      0
+    )
+  end
+  return e
+end
+
+---Normalize a list of specs, rejecting duplicates. Disabled entries are
+---dropped first, so two entries for one plugin can pick by `enabled`.
 ---@param entries (string|Jetpack.SpecInput)[]
 ---@param root string
 ---@return Jetpack.Spec[] list
@@ -132,13 +166,15 @@ function M.list(entries, root)
   end
   local list, by_id, by_url = {}, {}, {}
   for _, entry in ipairs(entries) do
-    local s = M.normalize(entry, root)
-    if by_id[s.id] then
-      error(("duplicate spec: %s"):format(s.id), 0)
+    if enabled(entry) then
+      local s = M.normalize(entry, root)
+      if by_id[s.id] then
+        error(("duplicate spec: %s"):format(s.id), 0)
+      end
+      list[#list + 1] = s
+      by_id[s.id] = s
+      by_url[M.url_key(s.url)] = s
     end
-    list[#list + 1] = s
-    by_id[s.id] = s
-    by_url[M.url_key(s.url)] = s
   end
   return list, by_id, by_url
 end

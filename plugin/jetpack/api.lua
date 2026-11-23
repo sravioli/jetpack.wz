@@ -58,9 +58,9 @@ local function install_missing()
       wezterm.log_error("[jetpack] " .. tostring(locks) .. "; not installing anything")
       return {}
     end
-    local changed = false
+    local changed, cloned = false, ops.preclone(missing)
     for _, s in ipairs(missing) do
-      local r, c = ops.install(s, locks)
+      local r, c = ops.install(s, locks, cloned[s.path])
       changed = changed or c
       if r.ok then
         hook.add_path(s.path)
@@ -90,7 +90,9 @@ end
 ---@param opts? Jetpack.Options
 ---@return Jetpack
 function M.setup(opts)
+  local started = hook.now()
   local cfg = config.parse(opts)
+  state.timings = {}
   local list, by_id, by_url = spec.list(cfg.spec, cfg.root)
   for _, id in ipairs(OWN) do
     if not by_id[id] then
@@ -118,6 +120,9 @@ function M.setup(opts)
   if cfg.validate then
     config.validate(opts)
   end
+  if cfg.timings then
+    state.timings.setup = hook.now() - started
+  end
   return M
 end
 
@@ -141,8 +146,9 @@ function M.require(name)
     return hook.load(s)
   end
   hook.unpinned(s)
-  return wezterm.plugin.__jetpack and wezterm.plugin.__jetpack.require(s.url)
-    or wezterm.plugin.require(s.url)
+  local original = wezterm.plugin.__jetpack and wezterm.plugin.__jetpack.require
+    or wezterm.plugin.require
+  return hook.timed(s, original, s.url)
 end
 
 -- ── Operations ─────────────────────────────────────────────────────────────
@@ -246,7 +252,30 @@ function M.set_picker_adapter(adapter)
   require("jetpack.picker").set_adapter(adapter)
 end
 
----Register the picker's key table.
+---Give each spec with `opts` or `config` its turn: `config(plugin, c, opts)`,
+---else `plugin.apply_to_config(c, opts)`. A plugin that fails is logged and
+---skipped, so one bad entry never breaks the config.
+---@param c table WezTerm config
+local function configure_plugins(c)
+  for _, s in ipairs(state.list) do
+    if s.config or s.opts then
+      local ok, err = pcall(function()
+        local plugin = M.require(s.id)
+        if s.config then
+          return s.config(plugin, c, s.opts)
+        elseif type(plugin) == "table" and type(plugin.apply_to_config) == "function" then
+          return plugin.apply_to_config(c, s.opts)
+        end
+        error("has `opts` but no `apply_to_config`; give the spec a `config` function", 0)
+      end)
+      if not ok then
+        wezterm.log_error(("[jetpack] %s: %s"):format(s.id, tostring(err)))
+      end
+    end
+  end
+end
+
+---Register the picker's key table, and run the specs' `opts`/`config`.
 ---@param c table WezTerm config
 ---@return table
 function M.apply_to_config(c)
@@ -259,6 +288,7 @@ function M.apply_to_config(c)
   end
   require("jetpack.auto").register()
   picker.key_table_ready = true
+  configure_plugins(c)
   return c
 end
 

@@ -141,15 +141,20 @@ end
 ---commit its spec accepts.
 ---@param s Jetpack.Spec
 ---@param locks table<string, Jetpack.LockEntry>
+---@param cloned? string|false what `preclone` found for this plugin: false when
+---it is already cloned, an error message when that failed, nil to clone here.
 ---@return Jetpack.Result
 ---@return boolean changed lockfile changed
-local function install(s, locks)
-  local root = config.get().root
-  local ok, err = deps.warp.filesystem.mkdir(root)
-  if not ok then
-    return result(s, "install", false, err), false
+local function install(s, locks, cloned)
+  local ok, err
+  if cloned == nil then
+    ok, err = deps.warp.filesystem.mkdir(config.get().root)
+    if ok then
+      ok, err = git.clone(s.url, s.path)
+    end
+  else
+    ok, err = not cloned, cloned or nil
   end
-  ok, err = git.clone(s.url, s.path)
   if not ok then
     return result(s, "install", false, err), false
   end
@@ -183,6 +188,25 @@ local function install(s, locks)
 end
 M.install = install
 
+---Clone the missing ones among `targets` at once, so installing many plugins
+---costs about as much as the slowest clone. One missing plugin is left to
+---`install`.
+---@param targets Jetpack.Spec[]
+---@return table<string, string|false> err per path; empty when nothing was cloned
+function M.preclone(targets)
+  local jobs = {}
+  for _, s in ipairs(targets) do
+    if not s.local_dir and not M.exists(s.path) then
+      jobs[#jobs + 1] = { url = s.url, dir = s.path }
+    end
+  end
+  if #jobs < 2 or not deps.warp.filesystem.mkdir(config.get().root) then
+    return {}
+  end
+  progress(1, 1, ("%d plugins"):format(#jobs), "cloning")
+  return git.clone_all(jobs)
+end
+
 ---Write `locks` when `changed`, turning a write failure into a result.
 local function save(locks, changed, report)
   if changed then
@@ -202,10 +226,11 @@ function M.sync(ids)
   local locks = lock.read(config.get().lockfile)
   local report, changed = {}, false
   local targets = select_specs(ids)
+  local cloned = M.preclone(targets)
   for i, s in ipairs(targets) do
     progress(i, #targets, s.name, "syncing")
     if not M.exists(s.path) then
-      local r, c = install(s, locks)
+      local r, c = install(s, locks, cloned[s.path])
       report[#report + 1], changed = r, changed or c
     else
       local entry = locks[s.id]
@@ -522,6 +547,12 @@ end
 
 -- ── Health report ──────────────────────────────────────────────────────────
 
+---@param seconds number
+---@return string
+local function ms(seconds)
+  return seconds < 0.001 and "<1 ms" or ("%.0f ms"):format(seconds * 1000)
+end
+
 ---@class Jetpack.Check
 ---@field level "ok"|"warn"|"info"
 ---@field text  string
@@ -590,6 +621,9 @@ function M.doctor()
     cfg.strict and "on" or "off",
     cfg.validate and "on" or "off"
   )
+  if cfg.timings and state.timings.setup then
+    add("info", "setup: %s (clones, validation and git included)", ms(state.timings.setup))
+  end
   if cfg.auto_check.enabled then
     local due = require("jetpack.auto").next_check() - os.time()
     add(
@@ -624,11 +658,12 @@ function M.doctor()
     end
     add(
       level,
-      "%s: %s%s · %s%s",
+      "%s: %s%s · %s%s%s",
       row.name,
       row.state,
       row.locked and (" " .. (row.locked.ref or row.locked.commit:sub(1, 7))) or "",
       row.path,
+      state.timings[row.id] and (" · loaded in " .. ms(state.timings[row.id])) or "",
       where and (pinned and "" or (" · but `" .. module .. "` resolves to " .. where)) or ""
     )
   end

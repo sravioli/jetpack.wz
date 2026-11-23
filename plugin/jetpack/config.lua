@@ -29,6 +29,7 @@ local wezterm = require "wezterm"
 ---@field spec?     (string|Jetpack.SpecInput)[]
 ---@field strict?   boolean  Raise instead of loading WezTerm's unpinned copy of a plugin whose clone is missing.
 ---@field validate? boolean  Validate options with warden.wz. Default true.
+---@field timings?  boolean  Time each plugin's load for `doctor`. Default true.
 ---@field auto_check? Jetpack.AutoCheck|false
 ---@field root?     string  Where clones live. Default: `<data dir>/wezterm/jetpack`.
 ---@field lockfile? string  Default: `<config dir>/jetpack-lock.json`.
@@ -63,6 +64,7 @@ function M.defaults()
     git = "git",
     strict = false,
     validate = true,
+    timings = true,
     auto_check = { enabled = true, interval_hours = 24, delay_seconds = 10 },
     picker = {
       title = "Jetpack",
@@ -127,7 +129,7 @@ function M.parse(opts)
   for k, v in pairs((opts.picker or {}).keys or {}) do
     cfg.picker.keys[k] = v or nil
   end
-  for _, k in ipairs { "strict", "validate" } do
+  for _, k in ipairs { "strict", "validate", "timings" } do
     if opts[k] ~= nil then
       cfg[k] = opts[k] == true
     end
@@ -168,6 +170,7 @@ local function build()
       git = text(),
       strict = w.boolean():optional(),
       validate = w.boolean():optional(),
+      timings = w.boolean():optional(),
       auto_check = w.union({
         w.literal(false),
         w.object({
@@ -208,6 +211,9 @@ local function build()
       commit = text(),
       branch = text(),
       dir = text(),
+      enabled = w.any():optional(),
+      opts = w.table():optional(),
+      config = w.any():optional(),
     }):unknown "warn",
   }
   return schemas

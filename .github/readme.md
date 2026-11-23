@@ -126,7 +126,8 @@ config.keys = {
 return config
 ```
 
-On the first start, jetpack clones each plugin. It checks out the newest
+On the first start, jetpack clones the missing plugins at the same time (on
+Windows, one after another). It checks out the newest
 commit that matches the spec and writes `jetpack-lock.json`. Press
 **Ctrl+Shift+P** to open the picker.
 
@@ -146,9 +147,22 @@ the version.
 | `branch`       | Follow a branch. If no version field is set, jetpack follows the default branch.                                                                                                      |
 | `dir`          | A local checkout. jetpack loads it as it is and never runs git on it. Use it for plugin development.                                                                                  |
 | `name`         | The display name. The default is the repository name.                                                                                                                                 |
+| `enabled`      | `false`, or a function that returns a falsy value, drops the entry as if it were not listed. Two entries for one plugin can pick by condition.                                       |
+| `opts`         | A table. `jetpack.apply_to_config(config)` calls the plugin's `apply_to_config(config, opts)` with it.                                                                                |
+| `config`       | A function `config(plugin, config, opts)` that runs instead of `apply_to_config`, for plugins with another entry point.                                                               |
 
 If a spec sets more than one version field, `commit` wins, then `tag`, then
 `version`, then `branch`.
+
+```lua
+{ "sravioli/chord.wz", opts = { leader = "CTRL|SHIFT" } },
+{ "a/linux-only.wz", enabled = wezterm.target_triple:find "linux" ~= nil },
+{ "sravioli/lantern.wz", config = function(lantern, c) lantern.rekindle(c) end },
+```
+
+A disabled plugin is not cloned, not locked, and not pinned, so guard its
+`require` too. `opts` and `config` run inside `jetpack.apply_to_config`. A
+plugin that fails there is logged and skipped. The config keeps loading.
 
 jetpack checks the options and the spec entries with warden.wz on every config
 load. A wrong type or value is an error. An unknown field (for example,
@@ -169,7 +183,7 @@ each plugin. The picker runs the same functions.
 | `jetpack.restore(ids?)`                 | Checks out the locked commits again, for example after you revert the lockfile with git.                                                                                   |
 | `jetpack.orphans()` / `jetpack.clean()` | Lists, or deletes, the clones that no spec names. jetpack never deletes a clone that has changed or untracked files, or commits on no remote.                              |
 | `jetpack.status()`                      | Shows, for each plugin, the locked version, the checked-out commit, the newest version that `check` found, and a state.                                                    |
-| `jetpack.doctor()`                      | Reports the health of git, the root, the lockfile, the hooks, the real load path of each plugin, and the unpinned plugins. It logs the report line by line and returns it. |
+| `jetpack.doctor()`                      | Reports the health of git, the root, the lockfile, the hooks, the real load path and load time of each plugin (`timings`), and the unpinned plugins. It logs the report line by line and returns it. |
 
 `ids` are ids (`owner/repo`) or names (`beacon.wz`). jetpack never checks out
 over uncommitted changes in a clone. It reports the plugin as failed instead.
@@ -259,6 +273,7 @@ jetpack.setup {
   git = "git",
   strict = false,
   validate = true,
+  timings = true,
   auto_check = { enabled = true, interval_hours = 24, delay_seconds = 10 },
   picker = {
     title = "Jetpack",
@@ -281,6 +296,7 @@ jetpack.setup {
 | `git`                       | `string`                                       | `"git"`                          | The git executable (name or path).                                                            |
 | `strict`                    | `boolean`                                      | `false`                          | Raise an error, instead of loading the unpinned copy of WezTerm, when a clone is missing.     |
 | `validate`                  | `boolean`                                      | `true`                           | Check the options and the specs with warden.wz.                                               |
+| `timings`                   | `boolean`                                      | `true`                           | Time each plugin's load and `setup` for `jetpack.doctor()`. `false` measures nothing.         |
 | `auto_check`                | `table\|false`                                 | see below                        | The background check. `false` turns it off.                                                   |
 | `auto_check.enabled`        | `boolean`                                      | `true`                           | Turn the background check on or off.                                                          |
 | `auto_check.interval_hours` | `number`                                       | `24`                             | Hours between checks. The minimum is 1.                                                       |

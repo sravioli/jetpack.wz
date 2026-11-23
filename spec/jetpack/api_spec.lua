@@ -126,6 +126,107 @@ describe("jetpack.api", function()
     end)
   end)
 
+  describe("installing several missing clones", function()
+    it("clones them together and locks each", function()
+      local specs = {}
+      for _, n in ipairs { "one", "two", "three" } do
+        local src = tmp .. "/src_" .. n
+        sh(
+          ("git init -q -b main '%s' && mkdir '%s/plugin' && echo 'return { n = %q }' > '%s/plugin/init.lua'"):format(
+            src,
+            src,
+            n,
+            src
+          )
+        )
+        sh(
+          ("cd '%s' && git add -A && git -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit -qm x"):format(
+            src
+          )
+        )
+        specs[#specs + 1] = { "file://" .. src, name = n }
+      end
+      setup(with_own(table.unpack(specs)))
+      assert.equal("", table.concat(logged "log_error"))
+      for _, n in ipairs { "one", "two", "three" } do
+        assert.equal(n, jetpack.require(n).n)
+      end
+      assert.matches('"version": 1', io.open(lockfile):read "*a")
+    end)
+  end)
+
+  describe("opts and config", function()
+    local function plugin(name, body)
+      local dir = tmp .. "/" .. name
+      sh(("mkdir -p '%s/plugin'"):format(dir))
+      local f = io.open(dir .. "/plugin/init.lua", "w")
+      f:write(body)
+      f:close()
+      return dir
+    end
+
+    it("calls apply_to_config with the opts, or the spec's config instead", function()
+      local a = plugin("pa", "return { apply_to_config = function(c, o) c.a = o.v end }")
+      local b = plugin("pb", "return { apply_to_config = function(c) c.b = 'wrong' end }")
+      setup(with_own({ "acme/pa", dir = a, opts = { v = 1 } }, {
+        "acme/pb",
+        dir = b,
+        opts = { v = 2 },
+        config = function(p, c, o)
+          c.b = (p.apply_to_config and "loaded" or "?") .. o.v
+        end,
+      }))
+      local c = jetpack.apply_to_config {}
+      assert.equal(1, c.a)
+      assert.equal("loaded2", c.b)
+    end)
+
+    it("logs a plugin without apply_to_config and keeps going", function()
+      local a = plugin("pc", "return {}")
+      local b = plugin("pd", "return { apply_to_config = function(c) c.d = true end }")
+      setup(with_own({ "acme/pc", dir = a, opts = {} }, { "acme/pd", dir = b, opts = {} }))
+      local c = jetpack.apply_to_config {}
+      assert.is_true(c.d)
+      assert.matches(
+        "acme/pc: has `opts` but no `apply_to_config`",
+        table.concat(logged "log_error")
+      )
+    end)
+  end)
+
+  describe("timings", function()
+    local function doctor_text()
+      local lines = {}
+      for _, c in ipairs(require("jetpack.ops").doctor()) do
+        lines[#lines + 1] = c.text
+      end
+      return table.concat(lines, "\n")
+    end
+
+    local function with_plugin()
+      local dir = tmp .. "/slow"
+      sh(("mkdir -p '%s/plugin' && echo 'return {}' > '%s/plugin/init.lua'"):format(dir, dir))
+      return with_own { "acme/slow", dir = dir }
+    end
+
+    it("reports setup and each plugin's load in doctor", function()
+      setup(with_plugin())
+      jetpack.require "acme/slow"
+      local text = doctor_text()
+      assert.matches("setup: ", text)
+      assert.matches("slow: local[^\n]* loaded in ", text)
+    end)
+
+    it("measures nothing when `timings` is off", function()
+      setup(with_plugin(), { timings = false })
+      jetpack.require "acme/slow"
+      assert.same({}, state.timings)
+      local text = doctor_text()
+      assert.is_nil(text:find("setup: ", 1, true))
+      assert.is_nil(text:find("loaded in", 1, true))
+    end)
+  end)
+
   describe("require", function()
     it("loads a managed plugin by id, name or URL", function()
       local dir = tmp .. "/demo"

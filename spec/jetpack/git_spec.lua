@@ -65,6 +65,22 @@ describe("jetpack.git", function()
     assert.is_string(err)
   end)
 
+  it("clones several repositories at once and reports each failure", function()
+    commit "one"
+    local jobs = {
+      { url = url, dir = tmp .. "/one" },
+      { url = url, dir = tmp .. "/two" },
+      { url = "file://" .. tmp .. "/nope", dir = tmp .. "/bad" },
+    }
+    local out = git.clone_all(jobs)
+    assert.is_false(out[tmp .. "/one"])
+    assert.is_false(out[tmp .. "/two"])
+    assert.is_string(out[tmp .. "/bad"])
+    assert.is_not_nil(git.head(tmp .. "/one"))
+    assert.is_not_nil(git.head(tmp .. "/two"))
+    assert.equal("", sh(("ls -A '%s' | grep -E '\\.(rc|err)$' || true"):format(tmp)))
+  end)
+
   it("lists tags, resolves refs and checks out a commit", function()
     local c1 = commit("one", "1.0.0")
     commit("two", "1.1.0")

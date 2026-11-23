@@ -38,6 +38,46 @@ function M.add_path(path)
   end
 end
 
+---Seconds, wall clock when WezTerm can say (git runs in child processes, which
+---`os.clock` does not count).
+---@return number
+function M.now()
+  local ok, t = pcall(function()
+    return tonumber(wezterm.time.now():format "%s%.6f")
+  end)
+  return ok and t or os.clock()
+end
+
+-- Open `timed` calls, innermost last: a plugin that loads another counts only
+-- its own part.
+local open = {}
+
+---Call `fn(...)` and record how long it took under `s.id`, unless `timings`
+---is off. The first load wins: later `require`s of a cached plugin are free.
+---@param s Jetpack.Spec
+---@param fn function
+---@return any ...
+function M.timed(s, fn, ...)
+  if not require("jetpack.config").get().timings then
+    return fn(...)
+  end
+  local frame = { started = M.now(), nested = 0 }
+  open[#open + 1] = frame
+  local res = table.pack(pcall(fn, ...))
+  open[#open] = nil
+  local total = M.now() - frame.started
+  if open[#open] then
+    open[#open].nested = open[#open].nested + total
+  end
+  if state.timings[s.id] == nil then
+    state.timings[s.id] = total - frame.nested
+  end
+  if not res[1] then
+    error(res[2], 0)
+  end
+  return table.unpack(res, 2, res.n)
+end
+
 ---Load a managed plugin's `plugin/init.lua` once, the way
 ---`wezterm.plugin.require` would: called with its component name.
 ---@param s Jetpack.Spec
@@ -52,7 +92,7 @@ function M.load(s)
   if not chunk then
     error(("[jetpack] cannot load %s: %s"):format(s.id, tostring(err)), 0)
   end
-  local mod = chunk(s.component, file)
+  local mod = M.timed(s, chunk, s.component, file)
   if mod == nil then
     mod = true
   end
@@ -121,7 +161,7 @@ function M.install()
         return M.load(s)
       end
       M.unpinned(s)
-      return original_require(url)
+      return M.timed(s, original_require, url)
     end
     M.note_unmanaged(url)
     return original_require(url)

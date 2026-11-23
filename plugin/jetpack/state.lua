@@ -17,11 +17,13 @@ local wezterm = require "wezterm"
 ---@field list    Jetpack.Spec[]
 ---@field by_id   table<string, Jetpack.Spec>
 ---@field by_url  table<string, Jetpack.Spec>
+---@field timings table<string, number> seconds each plugin took to load (its own part, not what it loaded), and `setup`
 ---@field own_dir string|nil checkout jetpack itself runs from; `clean` keeps it
 local M = {
   list = {},
   by_id = {},
   by_url = {},
+  timings = {},
   _local = {},
   -- Plugins loaded through plugin.require that no spec lists, by URL key.
   unmanaged = {},

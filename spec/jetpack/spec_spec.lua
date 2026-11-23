@@ -58,4 +58,61 @@ describe("jetpack.spec", function()
     assert.truthy(by_id["Owner/Repo"])
     assert.truthy(by_url[spec.url_key "https://github.com/owner/repo.git"])
   end)
+
+  describe("enabled", function()
+    it("drops entries that are false or whose function says no", function()
+      local list = spec.list({
+        { "a/one", enabled = false },
+        {
+          "a/two",
+          enabled = function()
+            return false
+          end,
+        },
+        {
+          "a/three",
+          enabled = function()
+            return true
+          end,
+        },
+        { "a/four", enabled = true },
+        "a/five",
+      }, "/r")
+      local ids = {}
+      for _, s in ipairs(list) do
+        ids[#ids + 1] = s.id
+      end
+      assert.same({ "a/three", "a/four", "a/five" }, ids)
+    end)
+
+    it("lets two entries for one plugin pick by condition", function()
+      local list = spec.list({
+        { "a/b", enabled = false, version = "^1" },
+        { "a/b", enabled = true, version = "^2" },
+      }, "/r")
+      assert.equal(1, #list)
+      assert.equal("^2", list[1].version)
+    end)
+
+    it("rejects other types", function()
+      assert.has_error(function()
+        spec.list({ { "a/b", enabled = "yes" } }, "/r")
+      end)
+    end)
+  end)
+
+  describe("opts and config", function()
+    it("are kept on the spec, and must be a table and a function", function()
+      local f = function() end
+      local s = spec.normalize({ "a/b", opts = { x = 1 }, config = f }, "/r")
+      assert.same({ x = 1 }, s.opts)
+      assert.equal(f, s.config)
+      assert.has_error(function()
+        spec.normalize({ "a/b", opts = "x" }, "/r")
+      end)
+      assert.has_error(function()
+        spec.normalize({ "a/b", config = {} }, "/r")
+      end)
+    end)
+  end)
 end)
